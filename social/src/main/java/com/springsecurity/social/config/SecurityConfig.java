@@ -30,16 +30,13 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final CustomUserDetailsService customUserDetailsService;
     private final TokenProvider tokenProvider;
-    private final AppProperties appProperties;
 
     public SecurityConfig(CustomOAuth2UserService customOAuth2UserService,
             CustomUserDetailsService customUserDetailsService,
-            TokenProvider tokenProvider,
-            AppProperties appProperties) {
+            TokenProvider tokenProvider) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.customUserDetailsService = customUserDetailsService;
         this.tokenProvider = tokenProvider;
-        this.appProperties = appProperties;
     }
 
     @Bean
@@ -66,7 +63,6 @@ public class SecurityConfig {
     public OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler() {
         return new OAuth2AuthenticationSuccessHandler(
                 tokenProvider,
-                appProperties,
                 cookieAuthorizationRequestRepository());
     }
 
