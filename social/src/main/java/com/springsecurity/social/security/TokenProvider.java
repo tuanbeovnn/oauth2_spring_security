@@ -1,22 +1,28 @@
 package com.springsecurity.social.security;
 
-import com.springsecurity.social.config.AppProperties;
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException;
+import java.util.Date;
+
+import javax.crypto.SecretKey;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
-import java.util.Date;
+import com.springsecurity.social.config.AppProperties;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
 
 @Service
 public class TokenProvider {
-
-
     private static final Logger logger = LoggerFactory.getLogger(TokenProvider.class);
+    private static final long REFRESH_TOKEN_EXPIRATION = 30L * 24 * 60 * 60 * 1000; // 30 days
 
     private final AppProperties appProperties;
     private final SecretKey key;
@@ -26,16 +32,37 @@ public class TokenProvider {
         this.key = Keys.hmacShaKeyFor(appProperties.getAuth().getTokenSecret().getBytes());
     }
 
-    public String createToken(Authentication authentication) {
+    public String createAccessToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return createAccessToken(userPrincipal.getId());
+    }
 
+    public String createAccessToken(Long userId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + appProperties.getAuth().getTokenExpirationMsec());
 
         return Jwts.builder()
-                .subject(Long.toString(userPrincipal.getId()))
+                .subject(Long.toString(userId))
                 .issuedAt(now)
                 .expiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    public String createRefreshToken(Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return createRefreshToken(userPrincipal.getId());
+    }
+
+    public String createRefreshToken(Long userId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + REFRESH_TOKEN_EXPIRATION);
+
+        return Jwts.builder()
+                .subject(Long.toString(userId))
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .claim("refresh", true)
                 .signWith(key)
                 .compact();
     }

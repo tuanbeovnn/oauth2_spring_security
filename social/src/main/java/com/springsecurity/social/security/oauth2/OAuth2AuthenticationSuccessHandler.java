@@ -10,20 +10,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
-
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
-
     private final TokenProvider tokenProvider;
     private final AppProperties appProperties;
     private final HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository;
 
     private static final String REDIRECT_URI_PARAM_COOKIE_NAME = "redirect_uri";
+    private static final String ACCESS_TOKEN_COOKIE_NAME = "access_token";
+    private static final String REFRESH_TOKEN_COOKIE_NAME = "refresh_token";
+    private static final int ACCESS_TOKEN_VALIDITY = 7 * 24 * 60 * 60; // 7 days
+    private static final int REFRESH_TOKEN_VALIDITY = 30 * 24 * 60 * 60; // 30 days
 
     public OAuth2AuthenticationSuccessHandler(TokenProvider tokenProvider,
                                               AppProperties appProperties,
@@ -45,6 +46,14 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         }
 
         clearAuthenticationAttributes(request, response);
+
+        // Generate tokens
+        String accessToken = tokenProvider.createAccessToken(authentication);
+        String refreshToken = tokenProvider.createRefreshToken(authentication);
+
+        // Add tokens as HTTP-only cookies
+        addTokenCookies(response, accessToken, refreshToken);
+
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 
@@ -58,13 +67,15 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             throw new BadRequestException("Unauthorized Redirect URI. Can't proceed with authentication.");
         }
 
-        String targetUrl = redirectUri.orElse(getDefaultTargetUrl());
+        return redirectUri.orElse(getDefaultTargetUrl());
+    }
 
-        String token = tokenProvider.createToken(authentication);
+    private void addTokenCookies(HttpServletResponse response, String accessToken, String refreshToken) {
+        // Add Access Token cookie
+        CookieUtils.addCookie(response, ACCESS_TOKEN_COOKIE_NAME, accessToken, ACCESS_TOKEN_VALIDITY);
 
-        return UriComponentsBuilder.fromUriString(targetUrl)
-                .queryParam("token", token)
-                .build().toUriString();
+        // Add Refresh Token cookie
+        CookieUtils.addCookie(response, REFRESH_TOKEN_COOKIE_NAME, refreshToken, REFRESH_TOKEN_VALIDITY);
     }
 
     protected void clearAuthenticationAttributes(HttpServletRequest request, HttpServletResponse response) {
